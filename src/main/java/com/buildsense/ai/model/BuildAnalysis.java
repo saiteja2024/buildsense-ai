@@ -6,6 +6,7 @@ public record BuildAnalysis(
         String errorMessage,
         String component,
         String recommendation,
-        String sourceLocation
+        String sourceLocation,
+        String stackTrace
 ) {
 }

@@ -21,7 +21,8 @@ public class BuildLogAnalyzer {
                     "Cannot find symbol",
                     component,
                     "Check whether the class exists, is imported correctly, or is available as a project dependency.",
-                    extractSourceLocation(buildLog)
+                    extractSourceLocation(buildLog),
+                    extractStackTrace(buildLog)
             );
         }
         if (buildLog.contains("Could not resolve dependencies")
@@ -34,7 +35,8 @@ public class BuildLogAnalyzer {
                     "Maven dependency resolution failed",
                     null,
                     "Check the dependency version, repository configuration, and Maven connectivity.",
-                    extractSourceLocation(buildLog)
+                    extractSourceLocation(buildLog),
+                    extractStackTrace(buildLog)
             );
         }
         if (buildLog.contains("Failures:")
@@ -48,7 +50,8 @@ public class BuildLogAnalyzer {
                     "Automated tests failed",
                     null,
                     "Review the failing test cases, assertion errors, and test reports.",
-                    extractSourceLocation(buildLog)
+                    extractSourceLocation(buildLog),
+                    extractStackTrace(buildLog)
             );
         }
         if (buildLog.contains("NullPointerException")) {
@@ -62,7 +65,23 @@ public class BuildLogAnalyzer {
                     errorMessage,
                     component,
                     "Identify the object that is null and check its initialization, dependency injection, or null-handling logic.",
-                    extractSourceLocation(buildLog)
+                    extractSourceLocation(buildLog),
+                    extractStackTrace(buildLog)
+            );
+        }
+        if (buildLog.contains("java.lang.IllegalArgumentException")) {
+
+            String errorMessage = extractRuntimeError(buildLog);
+            String component = extractComponent(buildLog);
+
+            return new BuildAnalysis(
+                    "FAILED",
+                    "RUNTIME_ERROR",
+                    errorMessage,
+                    component,
+                    "Check the method arguments and verify that valid values are being passed.",
+                    extractSourceLocation(buildLog),
+                    extractStackTrace(buildLog)
             );
         }
         return new BuildAnalysis(
@@ -71,12 +90,42 @@ public class BuildLogAnalyzer {
                 "Unable to identify the specific error.",
                 null,
                 "Review the build log for the root cause.",
-                extractSourceLocation(buildLog)
+                extractSourceLocation(buildLog),
+                extractStackTrace(buildLog)
         );
     }
 
     private String extractComponent(String buildLog) {
 
+        String[] lines = buildLog.split("\\R");
+
+        for (String line : lines) {
+
+            String trimmed = line.trim();
+
+            if (trimmed.startsWith("at ")) {
+
+                int classStart = 3;
+                int methodStart = trimmed.indexOf('(', classStart);
+
+                if (methodStart > classStart) {
+
+                    String classAndMethod =
+                            trimmed.substring(classStart, methodStart);
+
+                    int lastDot = classAndMethod.lastIndexOf('.');
+
+                    if (lastDot > 0) {
+                        return classAndMethod.substring(
+                                classAndMethod.lastIndexOf('.', lastDot - 1) + 1,
+                                lastDot
+                        );
+                    }
+                }
+            }
+        }
+
+        // Existing compilation-error logic
         String marker = "Cannot find symbol";
 
         int index = buildLog.indexOf(marker);
@@ -91,7 +140,6 @@ public class BuildLogAnalyzer {
 
         return "Unknown";
     }
-
     private String extractRuntimeError(String buildLog) {
 
         int index = buildLog.indexOf("NullPointerException");
@@ -137,6 +185,31 @@ public class BuildLogAnalyzer {
         }
 
         return null;
+    }
+    private String extractStackTrace(String buildLog) {
+
+        StringBuilder stackTrace = new StringBuilder();
+
+        String[] lines = buildLog.split("\\R");
+
+        for (String line : lines) {
+
+            String trimmed = line.trim();
+
+            if (trimmed.startsWith("at ")
+                    || trimmed.startsWith("Caused by:")) {
+
+                if (stackTrace.length() > 0) {
+                    stackTrace.append("\n");
+                }
+
+                stackTrace.append(trimmed);
+            }
+        }
+
+        return stackTrace.length() > 0
+                ? stackTrace.toString()
+                : null;
     }
 }
 

@@ -40,7 +40,8 @@ public class BuildAnalysisService {
                 aiAnalysis.rootCause(),
                 aiAnalysis.recommendation(),
                 aiAnalysis.confidence(),
-                ruleAnalysis.sourceLocation()
+                ruleAnalysis.sourceLocation(),
+                ruleAnalysis.stackTrace()
         );
     }
 }

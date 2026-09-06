@@ -7,6 +7,7 @@ public record FinalBuildAnalysis(
         String rootCause,
         String recommendation,
         String confidence,
-        String sourceLocation
+        String sourceLocation,
+        String stackTrace
 ) {
 }
