@@ -24,9 +24,29 @@ public class RagSearchService {
         this.embeddingStore = embeddingStore;
     }
 
-    public List<EmbeddingMatch<TextSegment>> search(String query) {
+    public List<EmbeddingMatch<TextSegment>> search(
+            String errorType,
+            String errorMessage,
+            String component,
+            String sourceLocation) {
 
-        var queryEmbedding = embeddingModel.embed(query).content();
+        String query = """
+                Error Type: %s
+                Error Message: %s
+                Component: %s
+                Source Location: %s
+                """.formatted(
+                errorType,
+                errorMessage,
+                component,
+                sourceLocation
+        );
+
+        System.out.println("RAG Query:");
+        System.out.println(query);
+
+        var queryEmbedding =
+                embeddingModel.embed(query).content();
 
         EmbeddingSearchRequest searchRequest =
                 EmbeddingSearchRequest.builder()

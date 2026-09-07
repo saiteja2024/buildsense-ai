@@ -6,7 +6,6 @@ import dev.langchain4j.data.segment.TextSegment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
 
 
 @Configuration

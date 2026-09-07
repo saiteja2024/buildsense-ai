@@ -1,13 +1,10 @@
 package com.buildsense.ai.controller;
 
-
+import com.buildsense.ai.model.FinalBuildAnalysis;
 import com.buildsense.ai.rag.KnowledgeIngestionService;
+import com.buildsense.ai.rag.RagDiagnosisService;
 import com.buildsense.ai.rag.RagSearchService;
-import dev.langchain4j.store.embedding.EmbeddingMatch;
-import dev.langchain4j.data.segment.TextSegment;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/rag")
@@ -15,44 +12,29 @@ public class RagController {
 
     private final KnowledgeIngestionService ingestionService;
     private final RagSearchService ragSearchService;
+    private final RagDiagnosisService ragDiagnosisService;
 
     public RagController(
             KnowledgeIngestionService ingestionService,
-            RagSearchService ragSearchService) {
+            RagSearchService ragSearchService,
+            RagDiagnosisService ragDiagnosisService) {
 
         this.ingestionService = ingestionService;
         this.ragSearchService = ragSearchService;
+        this.ragDiagnosisService = ragDiagnosisService;
     }
 
     @PostMapping("/ingest")
     public String ingest() {
 
         ingestionService.ingest("null-pointer-exceptions.md");
+        ingestionService.ingest("illegal-argument-exceptions.md");
 
         return "Knowledge document ingested successfully";
     }
 
-    @GetMapping("/search")
-    public String search(@RequestParam String query) {
-
-        var matches = ragSearchService.search(query);
-
-        if (matches.isEmpty()) {
-            return "No matches found";
-        }
-
-        StringBuilder response = new StringBuilder();
-
-        for (var match : matches) {
-            response.append("Score: ")
-                    .append(match.score())
-                    .append("\n");
-
-            response.append("Text: ")
-                    .append(match.embedded().text())
-                    .append("\n\n");
-        }
-
-        return response.toString();
+    @PostMapping("/diagnose")
+    public FinalBuildAnalysis diagnose(@RequestBody String buildLog) {
+        return ragDiagnosisService.diagnose(buildLog);
     }
 }

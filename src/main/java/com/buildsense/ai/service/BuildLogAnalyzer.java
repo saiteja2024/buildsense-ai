@@ -76,7 +76,7 @@ public class BuildLogAnalyzer {
 
             return new BuildAnalysis(
                     "FAILED",
-                    "RUNTIME_ERROR",
+                    "ILLEGAL_ARGUMENT",
                     errorMessage,
                     component,
                     "Check the method arguments and verify that valid values are being passed.",
@@ -142,17 +142,26 @@ public class BuildLogAnalyzer {
     }
     private String extractRuntimeError(String buildLog) {
 
-        int index = buildLog.indexOf("NullPointerException");
+        String[] errorTypes = {
+                "NullPointerException",
+                "IllegalArgumentException"
+        };
 
-        if (index >= 0) {
-            String remaining = buildLog.substring(index).trim();
+        for (String errorType : errorTypes) {
 
-            if (!remaining.isEmpty()) {
-                return remaining;
+            int index = buildLog.indexOf(errorType);
+
+            if (index >= 0) {
+
+                String remaining = buildLog.substring(index).trim();
+
+                if (!remaining.isEmpty()) {
+                    return remaining;
+                }
             }
         }
 
-        return "NullPointerException";
+        return "Unknown runtime error";
     }
 
     private String extractNpeComponent(String buildLog) {
