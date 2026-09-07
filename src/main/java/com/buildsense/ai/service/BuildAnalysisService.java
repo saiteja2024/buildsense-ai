@@ -1,47 +1,22 @@
 package com.buildsense.ai.service;
 
-import com.buildsense.ai.model.AiBuildAnalysis;
-import com.buildsense.ai.model.BuildAnalysis;
 import com.buildsense.ai.model.FinalBuildAnalysis;
+import com.buildsense.ai.rag.RagDiagnosisService;
 import org.springframework.stereotype.Service;
 
 @Service
 public class BuildAnalysisService {
 
-    private final BuildLogAnalyzer buildLogAnalyzer;
-    private final AiBuildAnalyzer aiBuildAnalyzer;
-    private final BuildLogPreprocessor buildLogPreprocessor;
+    private final RagDiagnosisService ragDiagnosisService;
 
     public BuildAnalysisService(
-            BuildLogAnalyzer buildLogAnalyzer,
-            AiBuildAnalyzer aiBuildAnalyzer,
-            BuildLogPreprocessor buildLogPreprocessor) {
+            RagDiagnosisService ragDiagnosisService) {
 
-        this.buildLogAnalyzer = buildLogAnalyzer;
-        this.aiBuildAnalyzer = aiBuildAnalyzer;
-        this.buildLogPreprocessor = buildLogPreprocessor;
+        this.ragDiagnosisService = ragDiagnosisService;
     }
 
     public FinalBuildAnalysis analyze(String buildLog) {
 
-        String processedLog =
-                buildLogPreprocessor.preprocess(buildLog);
-
-        BuildAnalysis ruleAnalysis =
-                buildLogAnalyzer.analyze(processedLog);
-
-        AiBuildAnalysis aiAnalysis =
-                aiBuildAnalyzer.analyzeBuildLog(processedLog);
-
-        return new FinalBuildAnalysis(
-                ruleAnalysis.status(),
-                ruleAnalysis.errorType(),
-                ruleAnalysis.component(),
-                aiAnalysis.rootCause(),
-                aiAnalysis.recommendation(),
-                aiAnalysis.confidence(),
-                ruleAnalysis.sourceLocation(),
-                ruleAnalysis.stackTrace()
-        );
+        return ragDiagnosisService.diagnose(buildLog);
     }
 }

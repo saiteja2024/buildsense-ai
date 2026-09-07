@@ -128,6 +128,7 @@ Build Failure -----------+
 * Confidence scoring
 * Structured JSON output
 * Deterministic error classification preserved during LLM reasoning
+* RAG context provided to the LLM during diagnosis
 
 ### RAG
 
@@ -172,7 +173,7 @@ at com.example.payment.PaymentController.process(PaymentController.java:32)
 
 ### RAG Retrieval
 
-BuildSense converts the detected failure information into a semantic query:
+BuildSense converts the detected failure information into a targeted semantic query:
 
 ```text
 Error Type: ILLEGAL_ARGUMENT
@@ -183,7 +184,7 @@ Source Location: PaymentValidator.java:28
 
 The query is embedded using `nomic-embed-text` and searched against the PostgreSQL/PGVector knowledge base.
 
-Relevant engineering knowledge is then provided to the LLM as context.
+Relevant engineering knowledge is retrieved and provided to the LLM as contextual evidence.
 
 ### AI Diagnosis
 
@@ -264,7 +265,7 @@ nomic-embed-text
 PostgreSQL + PGVector
 ```
 
-### Retrieval Pipeline
+### Retrieval + Diagnosis Pipeline
 
 ```text
 Build Failure
@@ -286,6 +287,9 @@ Relevant Troubleshooting Knowledge
       |
       v
 LLM Context
+      |
+      v
+Root Cause + Recommendation + Confidence
 ```
 
 ---
@@ -310,7 +314,7 @@ RAG provides relevant engineering knowledge without requiring the LLM to rely en
 
 The LLM then reasons over the **actual build failure + retrieved engineering context** to produce the root cause, recommendation, and confidence.
 
-This hybrid architecture helps reduce hallucinations, provides traceable context, and makes the system easier to validate and extend.
+This hybrid architecture helps reduce hallucinations, provides contextual evidence for AI reasoning, and makes the system easier to validate and extend.
 
 ---
 
@@ -457,12 +461,14 @@ BuildSense aims to answer:
 
 BuildSense has progressed from deterministic build-log analysis to a **working RAG-enhanced AI diagnosis pipeline** using local Ollama models and PostgreSQL/PGVector.
 
-The current system can:
+The current production flow is:
 
 ```text
 Actual Build Failure
         +
 Deterministic Analysis
+        +
+Targeted RAG Retrieval
         +
 Retrieved Engineering Knowledge
         +
@@ -474,6 +480,22 @@ Root Cause
 Recommendation
 Confidence
 ```
+
+The primary API is:
+
+```text
+POST /api/builds/analyze
+```
+
+This endpoint now orchestrates the complete analysis flow from build log to AI-generated diagnosis.
+
+### Current Milestone
+
+**Phase 1 — Build Analysis:** ✅ Complete
+
+**Phase 2 — RAG + AI Diagnosis:** ✅ Core implementation complete
+
+**Phase 3 — Repository Intelligence:** 🚧 Next
 
 The next major milestone is **Repository Intelligence** — allowing BuildSense to move beyond troubleshooting documentation and retrieve and analyze the actual source code associated with a build failure.
 
