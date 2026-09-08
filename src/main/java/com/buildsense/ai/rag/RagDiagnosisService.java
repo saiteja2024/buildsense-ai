@@ -6,6 +6,7 @@ import com.buildsense.ai.repository.GitService;
 import com.buildsense.ai.repository.MavenContextService;
 import com.buildsense.ai.repository.RepositorySourceService;
 import com.buildsense.ai.service.BuildLogAnalyzer;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.chat.ChatModel;
@@ -73,7 +74,7 @@ public class RagDiagnosisService {
         // 6. Extract recent Git commits / diffs
         String gitContext = gitService.getRecentCommit();
 
-        // 7. Ask Llama for structured JSON with Source, Maven, Git + RAG Knowledge
+        // 7. Ask Llama for structured JSON
         String prompt = """
                 You are BuildSense AI, an expert Java and Maven build failure analyzer.
 
@@ -85,7 +86,8 @@ public class RagDiagnosisService {
                 - Use the stack trace, source location, and source code snippet as primary evidence.
                 - Use Maven descriptors or Git context if relevant to the failure.
                 - Use the retrieved knowledge as supporting context.
-                - Return ONLY valid JSON.
+                - Return ONLY valid JSON matching the requested structure.
+                - Do not attempt to invoke functions or tools.
                 - Do not use markdown.
                 - Do not include ```json or ```.
 
@@ -187,19 +189,19 @@ public class RagDiagnosisService {
             String fileName = parts[0].trim();
             int lineNumber = Integer.parseInt(parts[1].trim());
 
-            // Extract target line +/- 15 lines window
             String snippet = repositorySourceService.getSourceSnippet(fileName, lineNumber, 15);
 
             if (snippet != null && !snippet.isBlank()) {
                 return snippet;
             }
         } catch (Exception e) {
-            // Graceful fallback if parsing/reading fails
+            // Graceful fallback
         }
 
         return "Source file not found in local repository.";
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private record LlmDiagnosis(
             String rootCause,
             String recommendation,
