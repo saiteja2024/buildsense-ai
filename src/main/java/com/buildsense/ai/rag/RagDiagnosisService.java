@@ -2,6 +2,8 @@ package com.buildsense.ai.rag;
 
 import com.buildsense.ai.model.BuildAnalysis;
 import com.buildsense.ai.model.FinalBuildAnalysis;
+import com.buildsense.ai.repository.GitService;
+import com.buildsense.ai.repository.MavenContextService;
 import com.buildsense.ai.repository.RepositorySourceService;
 import com.buildsense.ai.service.BuildLogAnalyzer;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,6 +21,8 @@ public class RagDiagnosisService {
     private final ChatModel chatModel;
     private final BuildLogAnalyzer buildLogAnalyzer;
     private final RepositorySourceService repositorySourceService;
+    private final MavenContextService mavenContextService;
+    private final GitService gitService;
     private final ObjectMapper objectMapper;
 
     public RagDiagnosisService(
@@ -26,20 +30,23 @@ public class RagDiagnosisService {
             ChatModel chatModel,
             BuildLogAnalyzer buildLogAnalyzer,
             RepositorySourceService repositorySourceService,
+            MavenContextService mavenContextService,
+            GitService gitService,
             ObjectMapper objectMapper) {
 
         this.ragSearchService = ragSearchService;
         this.chatModel = chatModel;
         this.buildLogAnalyzer = buildLogAnalyzer;
         this.repositorySourceService = repositorySourceService;
+        this.mavenContextService = mavenContextService;
+        this.gitService = gitService;
         this.objectMapper = objectMapper;
     }
 
     public FinalBuildAnalysis diagnose(String buildLog) {
 
         // 1. Deterministic analysis
-        BuildAnalysis analysis =
-                buildLogAnalyzer.analyze(buildLog);
+        BuildAnalysis analysis = buildLogAnalyzer.analyze(buildLog);
 
         // 2. Targeted RAG retrieval
         List<EmbeddingMatch<TextSegment>> matches =
@@ -52,25 +59,31 @@ public class RagDiagnosisService {
 
         // 3. Build retrieved knowledge
         StringBuilder knowledge = new StringBuilder();
-
         for (var match : matches) {
             knowledge.append(match.embedded().text())
                     .append("\n\n");
         }
 
-        // 4. Extract repository source code if location is identified
+        // 4. Extract repository source code snippet
         String sourceCodeContext = extractSourceCodeContext(analysis.sourceLocation());
 
-        // 5. Ask Llama for structured JSON with Source Code + RAG Knowledge
-        String prompt = """
-                You are BuildSense AI, an expert Java build failure analyzer.
+        // 5. Extract Maven pom.xml / properties context
+        String mavenContext = mavenContextService.getMavenContext(analysis.errorType());
 
-                Analyze the build failure using the provided repository source code and engineering knowledge.
+        // 6. Extract recent Git commits / diffs
+        String gitContext = gitService.getRecentCommit();
+
+        // 7. Ask Llama for structured JSON with Source, Maven, Git + RAG Knowledge
+        String prompt = """
+                You are BuildSense AI, an expert Java and Maven build failure analyzer.
+
+                Analyze the build failure using the provided repository source code, Maven context, Git history, and engineering knowledge.
 
                 IMPORTANT:
                 - The deterministic analyzer has already identified the error type.
                 - Do not change the detected error type.
-                - Use the stack trace, source location, and source code as primary evidence.
+                - Use the stack trace, source location, and source code snippet as primary evidence.
+                - Use Maven descriptors or Git context if relevant to the failure.
                 - Use the retrieved knowledge as supporting context.
                 - Return ONLY valid JSON.
                 - Do not use markdown.
@@ -88,7 +101,13 @@ public class RagDiagnosisService {
                 SOURCE LOCATION:
                 %s
 
-                SOURCE CODE CONTEXT:
+                SOURCE CODE SNIPPET:
+                %s
+
+                MAVEN & CONFIGURATION CONTEXT:
+                %s
+
+                GIT HISTORY & DIFF:
                 %s
 
                 STACK TRACE:
@@ -103,7 +122,7 @@ public class RagDiagnosisService {
                 Return exactly this JSON structure:
 
                 {
-                  "rootCause": "concise root cause referencing source line if applicable",
+                  "rootCause": "concise root cause referencing source line or configuration if applicable",
                   "recommendation": "concise recommended fix",
                   "confidence": "HIGH"
                 }
@@ -118,6 +137,8 @@ public class RagDiagnosisService {
                 analysis.component(),
                 analysis.sourceLocation(),
                 sourceCodeContext,
+                mavenContext,
+                gitContext,
                 analysis.stackTrace(),
                 buildLog,
                 knowledge
@@ -135,7 +156,7 @@ public class RagDiagnosisService {
                             LlmDiagnosis.class
                     );
 
-            // 6. Combine deterministic + Repository + RAG + LLM results
+            // 8. Combine deterministic + Repository + Maven + Git + RAG + LLM results
             return new FinalBuildAnalysis(
                     analysis.status(),
                     analysis.errorType(),
@@ -162,15 +183,18 @@ public class RagDiagnosisService {
         }
 
         try {
-            // Parses "PaymentValidator.java:12" -> "PaymentValidator.java"
-            String fileName = sourceLocation.split(":")[0].trim();
-            String source = repositorySourceService.getSourceFile(fileName);
+            String[] parts = sourceLocation.split(":");
+            String fileName = parts[0].trim();
+            int lineNumber = Integer.parseInt(parts[1].trim());
 
-            if (source != null && !source.isBlank()) {
-                return source;
+            // Extract target line +/- 15 lines window
+            String snippet = repositorySourceService.getSourceSnippet(fileName, lineNumber, 15);
+
+            if (snippet != null && !snippet.isBlank()) {
+                return snippet;
             }
-        } catch (Exception ignored) {
-            // Fallback gracefully if file resolution fails
+        } catch (Exception e) {
+            // Graceful fallback if parsing/reading fails
         }
 
         return "Source file not found in local repository.";
